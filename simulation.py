@@ -2,6 +2,7 @@ from mpi4py import MPI
 import matplotlib.pyplot as plt
 import numpy as np
 import crypto_primitive as cp #here you chose name of your file with crypto primitive
+#import dig_sign as cp
 from fuzzywuzzy import fuzz
 import time
 import random
@@ -32,6 +33,10 @@ def corruption(input_data, corruption_type, corruption_number = 0):
             tmp_data = tmp_data[-corruption_number:] + tmp_data[:-corruption_number]
         elif corruption_type == "<<": #Cyclic shift to the left
             tmp_data = tmp_data[corruption_number:] + tmp_data[:corruption_number]
+        elif corruption_type[:9] == "ds sign: ":
+            tmp_data = list(corruption(bytes(tmp_data[:128]), corruption_type[9:], corruption_number)) + tmp_data[128:]
+        elif corruption_type[:9] == "ds text: ":
+            tmp_data = tmp_data[:128] + list(corruption(bytes(tmp_data[128:]), corruption_type[9:], corruption_number))
         else:
             corruption_type = "none"
             return input_data
