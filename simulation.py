@@ -1,13 +1,16 @@
 from mpi4py import MPI
 import matplotlib.pyplot as plt
 import numpy as np
-import crypto_primitive as cp #here you chose name of your file with crypto primitive
-#import dig_sign as cp
+#import des as cp #here you chose name of your file with crypto primitive
+import dig_sign as cp
+#import rsa as cp
+#import aes as cp
 from fuzzywuzzy import fuzz
 import time
 import random
 import os
 
+cpn = "dig_sign" #crypto primitive name
 
 def corruption(input_data, corruption_type, corruption_number = 0):
     output_data = None
@@ -46,7 +49,7 @@ def corruption(input_data, corruption_type, corruption_number = 0):
 
 def pre_main(key_corruption = "none", text_corruption = "none", key_corrupted_number = 0,
 text_corrupted_number = 0, show_graph = True, show_text = True, fixed_data_size = 0, 
-iterations_number = 20, block_bytes_size = 16):
+iterations_number = 20, block_bytes_size = 16, corrupted_block = 1):
     
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
@@ -79,11 +82,15 @@ iterations_number = 20, block_bytes_size = 16):
             similarity_arr[i + 1] = fuzz.ratio(input_text[start_idx: start_idx + block_bytes_size * (i + 1)]
                                     .decode("utf-8", errors = "ignore"),result_text)
             input_text = input_text.decode("utf-8", errors = "ignore")
+            
+            np.save('{}_{}_byte_size_{}'.format(key_corruption, text_corruption, cpn), byte_size)
+            np.save('{}_{}_encrypion_time_{}'.format(key_corruption, text_corruption, cpn), encryption_time)
+            np.save('{}_{}_decrypion_time_{}'.format(key_corruption, text_corruption, cpn), decryption_time)
 
         if show_graph == True:
             plt.title("Зависимость времени шифрования/дешифрования от длины сообщения\n" +
-                    "key_corr={}({}), text_corr={}({})".format(key_corruption, key_corrupted_number,
-                                                            text_corruption, text_corrupted_number))
+                    "key_corr={}({}), text_corr={}({})".format(key_corruption, key_corrupted_number *
+                            corrupted_block, text_corruption, text_corrupted_number * corrupted_block))
             plt.xlabel("Длина сообщения")
             plt.ylabel("Время")
             plt.grid()
@@ -93,8 +100,8 @@ iterations_number = 20, block_bytes_size = 16):
             plt.show()
 
             plt.title("Зависимость похожести от длины сообщения\n" +
-                    "key_corr={}({}), text_corr={}({})".format(key_corruption, key_corrupted_number,
-                                                            text_corruption, text_corrupted_number))
+                    "key_corr={}({}), text_corr={}({})".format(key_corruption, key_corrupted_number *
+                            corrupted_block, text_corruption, text_corrupted_number * corrupted_block))
             plt.xlabel("Длина сообщения")
             plt.ylabel("Похожесть, %")
             plt.grid()
@@ -103,7 +110,6 @@ iterations_number = 20, block_bytes_size = 16):
 
         
         if fixed_data_size != 0: #There we build graph of similarity vs corruption size
-            #comm.send(input_text, dest=1)
             key = cp.key.generate()
             comm.send(key, dest=1)
             input_text = input_text.encode("utf-8")
@@ -111,7 +117,7 @@ iterations_number = 20, block_bytes_size = 16):
             compare_text = input_text[0 : fixed_data_size].decode("utf-8", errors = "ignore") #Just for not decoding same several times
 
             similarity_key = np.zeros(key_corrupted_number + 1, dtype = int)
-            corrupted_bytes_key = np.linspace(0, key_corrupted_number + 1, key_corrupted_number + 1)
+            corrupted_bytes_key = np.linspace(0, (key_corrupted_number + 1) * corrupted_block, key_corrupted_number + 1)
             for i in range(key_corrupted_number + 1):
                 result_text = comm.recv(source=2)
                 similarity_key[i] = fuzz.ratio(compare_text, result_text)
@@ -121,7 +127,12 @@ iterations_number = 20, block_bytes_size = 16):
                 if i == key_corrupted_number and show_text == True and key_corrupted_number > 0: #With key corruption
                     print("\n---Before---\n{}\n\n---After(key_corr={}({}), text_corr=none)---\n{}".format
                                          (compare_text, key_corruption, key_corrupted_number, result_text))
+            
+            
             if show_graph == True and key_corrupted_number > 0 and key_corruption != "none":
+                np.save('{}_{}_corrupted_bytes_key_{}'.format(key_corruption, text_corruption, cpn), corrupted_bytes_key)
+                np.save('{}_{}_similarity_key{}'.format(key_corruption, text_corruption, cpn), similarity_key)
+                
                 plt.title("Зависимость похожести от размера ошибки\n" 
                         "key_corr={}, text_corr=none".format(key_corruption))
                 plt.xlabel("Размер ошибки")
@@ -132,7 +143,7 @@ iterations_number = 20, block_bytes_size = 16):
      
             
             similarity_text = np.zeros(text_corrupted_number + 1, dtype = int)
-            corrupted_bytes_text = np.linspace(0, text_corrupted_number + 1, text_corrupted_number + 1)
+            corrupted_bytes_text = np.linspace(0, (text_corrupted_number + 1) * corrupted_block, text_corrupted_number + 1)
             for i in range(text_corrupted_number + 1):
                 result_text = comm.recv(source=2)
                 similarity_text[i] = fuzz.ratio(compare_text, result_text)
@@ -140,6 +151,9 @@ iterations_number = 20, block_bytes_size = 16):
                     print("\n---Before---\n{}\n\n---After(key_corr=none, text_corr={}({}))---\n{}".format
                          (compare_text, text_corruption, text_corrupted_number, result_text))
             if show_graph == True and text_corrupted_number > 0 and text_corruption != "none":
+                np.save('{}_{}_corrupted_bytes_text_{}'.format(key_corruption, text_corruption, cpn), corrupted_bytes_text)
+                np.save('{}_{}_similarity_text{}'.format(key_corruption, text_corruption, cpn), similarity_text)
+                
                 plt.title("Зависимость похожести от размера ошибки\n"
                         "key_corr=none, text_corr={}".format(text_corruption))
                 plt.xlabel("Размер ошибки")
@@ -152,26 +166,26 @@ iterations_number = 20, block_bytes_size = 16):
     elif rank == 1:
         if cp.key.type_ == "go":
             key = comm.recv(source=0)
-            corrupted_key = corruption(key, key_corruption, key_corrupted_number)
+            corrupted_key = corruption(key, key_corruption, key_corrupted_number * corrupted_block)
             comm.send(corrupted_key, dest=2)
         for i in range(iterations_number):
             if cp.key.type_ == "gps":
                 key = comm.recv(source=0)
-                corrupted_key = corruption(key, key_corruption, key_corrupted_number)
+                corrupted_key = corruption(key, key_corruption, key_corrupted_number * corrupted_block)
                 comm.send(corrupted_key, dest=2)
             recv_text = comm.recv(source=0)
-            corrupted_text = corruption(recv_text, text_corruption, text_corrupted_number)
+            corrupted_text = corruption(recv_text, text_corruption, text_corrupted_number * corrupted_block)
             comm.send(corrupted_text, dest=2)
         
         if fixed_data_size != 0:
             key = comm.recv(source=0)
             recv_text = comm.recv(source=0)
             for i in range(key_corrupted_number + 1):
-                corrupted_key = corruption(key, key_corruption, i)
+                corrupted_key = corruption(key, key_corruption, i * corrupted_block)
                 comm.send(corrupted_key, dest=2)
                 comm.send(recv_text, dest=2)
             for i in range(text_corrupted_number + 1): #once without corruption
-                corrupted_text = corruption(recv_text, text_corruption, i)
+                corrupted_text = corruption(recv_text, text_corruption, i * corrupted_block)
                 comm.send(key, dest=2)
                 comm.send(corrupted_text, dest=2)
 
