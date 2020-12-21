@@ -1,10 +1,10 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-crypto_primitives = ['des', 'aes', 'rsa', 'dig_sign']
+crypto_primitives = ['aes_default', 'kuznechik', 'belt']
 
 
-byte_size = np.load('none_none_byte_size_aes.npy')
+byte_size = np.load('none_none_byte_size_aes_l.npy')
 
 
 plt.title("Зависимость времени шифрования от длины сообщения\n" +
@@ -30,9 +30,8 @@ for cp in crypto_primitives:
 plt.legend()
 plt.show()
 
-
-corrupted_bytes = np.load('none_chg_corrupted_bytes_text_aes.npy')
-cor_type = "del"
+corrupted_bytes = np.load('none_chg_corrupted_bytes_text_aes_l.npy')
+cor_type = "chg"
 
 plt.title("Зависимость похожести от размера ошибки\n" +
         "key_corr=none, text_corr={}".format(cor_type))
